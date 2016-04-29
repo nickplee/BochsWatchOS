@@ -1,6 +1,6 @@
 # Bochs for Apple Watch
 
-You'lll need to source the files that show up in red yourself-- they aren't redistributable.  For more information, see Steven Troughton-Smith's [excellent blog post](http://blog.steventroughtonsmith.com/post/128957959685/native-uikit-apps-on-apple-watch).  
+You'll need to source the files that show up in red yourself-- they aren't redistributable.  For more information, see Steven Troughton-Smith's [excellent blog post](http://blog.steventroughtonsmith.com/post/128957959685/native-uikit-apps-on-apple-watch).  
 
 # License
 
