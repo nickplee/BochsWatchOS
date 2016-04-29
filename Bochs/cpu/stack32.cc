@@ -1,0 +1,371 @@
+/////////////////////////////////////////////////////////////////////////
+// $Id: stack32.cc,v 1.33 2006/06/12 16:58:27 sshwarts Exp $
+/////////////////////////////////////////////////////////////////////////
+//
+//  Copyright (C) 2001  MandrakeSoft S.A.
+//
+//    MandrakeSoft S.A.
+//    43, rue d'Aboukir
+//    75002 Paris - France
+//    http://www.linux-mandrake.com/
+//    http://www.mandrakesoft.com/
+//
+//  This library is free software; you can redistribute it and/or
+//  modify it under the terms of the GNU Lesser General Public
+//  License as published by the Free Software Foundation; either
+//  version 2 of the License, or (at your option) any later version.
+//
+//  This library is distributed in the hope that it will be useful,
+//  but WITHOUT ANY WARRANTY; without even the implied warranty of
+//  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+//  Lesser General Public License for more details.
+//
+//  You should have received a copy of the GNU Lesser General Public
+//  License along with this library; if not, write to the Free Software
+//  Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307 USA
+
+
+#define NEED_CPU_REG_SHORTCUTS 1
+#include "bochs.h"
+#include "cpu.h"
+#define LOG_THIS BX_CPU_THIS_PTR
+
+void BX_CPU_C::POP_Ed(bxInstruction_c *i)
+{
+  Bit32u val32;
+
+  pop_32(&val32);
+
+  if (i->modC0()) {
+    BX_WRITE_32BIT_REGZ(i->rm(), val32);
+  }
+  else {
+    // Note: there is one little weirdism here.  When 32bit addressing
+    // is used, it is possible to use ESP in the modrm addressing.
+    // If used, the value of ESP after the pop is used to calculate
+    // the address.
+    if (i->as32L() && (!i->modC0()) && (i->rm()==4) && (i->sibBase()==4)) {
+      // call method on BX_CPU_C object
+      BX_CPU_CALL_METHODR (i->ResolveModrm, (i));
+    }
+    write_virtual_dword(i->seg(), RMAddr(i), &val32);
+  }
+}
+
+void BX_CPU_C::PUSH_ERX(bxInstruction_c *i)
+{
+  push_32(BX_CPU_THIS_PTR gen_reg[i->opcodeReg()].dword.erx);
+}
+
+void BX_CPU_C::POP_ERX(bxInstruction_c *i)
+{
+  Bit32u erx;
+  pop_32(&erx);
+  BX_CPU_THIS_PTR gen_reg[i->opcodeReg()].dword.erx = erx;
+}
+
+void BX_CPU_C::PUSH32_CS(bxInstruction_c *i)
+{
+  Bit32u eSP;
+  decrementESPForPush(4, &eSP);
+  write_virtual_word(BX_SEG_REG_SS, eSP,
+            &BX_CPU_THIS_PTR sregs[BX_SEG_REG_CS].selector.value);
+}
+
+void BX_CPU_C::PUSH32_DS(bxInstruction_c *i)
+{
+  Bit32u eSP;
+  decrementESPForPush(4, &eSP);
+  write_virtual_word(BX_SEG_REG_SS, eSP,
+           &BX_CPU_THIS_PTR sregs[BX_SEG_REG_DS].selector.value);
+}
+
+void BX_CPU_C::PUSH32_ES(bxInstruction_c *i)
+{
+  Bit32u eSP;
+  decrementESPForPush(4, &eSP);
+  write_virtual_word(BX_SEG_REG_SS, eSP,
+            &BX_CPU_THIS_PTR sregs[BX_SEG_REG_ES].selector.value);
+}
+
+void BX_CPU_C::PUSH32_FS(bxInstruction_c *i)
+{
+  Bit32u eSP;
+  decrementESPForPush(4, &eSP);
+  write_virtual_word(BX_SEG_REG_SS, eSP,
+            &BX_CPU_THIS_PTR sregs[BX_SEG_REG_FS].selector.value);
+}
+
+void BX_CPU_C::PUSH32_GS(bxInstruction_c *i)
+{
+  Bit32u eSP;
+  decrementESPForPush(4, &eSP);
+  write_virtual_word(BX_SEG_REG_SS, eSP,
+            &BX_CPU_THIS_PTR sregs[BX_SEG_REG_GS].selector.value);
+}
+
+void BX_CPU_C::PUSH32_SS(bxInstruction_c *i)
+{
+  Bit32u eSP;
+  decrementESPForPush(4, &eSP);
+  write_virtual_word(BX_SEG_REG_SS, eSP,
+            &BX_CPU_THIS_PTR sregs[BX_SEG_REG_SS].selector.value);
+}
+
+void BX_CPU_C::POP32_DS(bxInstruction_c *i)
+{
+  Bit32u ds;
+  pop_32(&ds);
+  load_seg_reg(&BX_CPU_THIS_PTR sregs[BX_SEG_REG_DS], (Bit16u) ds);
+}
+
+void BX_CPU_C::POP32_ES(bxInstruction_c *i)
+{
+  Bit32u es;
+  pop_32(&es);
+  load_seg_reg(&BX_CPU_THIS_PTR sregs[BX_SEG_REG_ES], (Bit16u) es);
+}
+
+void BX_CPU_C::POP32_FS(bxInstruction_c *i)
+{
+  Bit32u fs;
+  pop_32(&fs);
+  load_seg_reg(&BX_CPU_THIS_PTR sregs[BX_SEG_REG_FS], (Bit16u) fs);
+}
+
+void BX_CPU_C::POP32_GS(bxInstruction_c *i)
+{
+  Bit32u gs;
+  pop_32(&gs);
+  load_seg_reg(&BX_CPU_THIS_PTR sregs[BX_SEG_REG_GS], (Bit16u) gs);
+}
+
+void BX_CPU_C::POP32_SS(bxInstruction_c *i)
+{
+  Bit32u ss;
+  pop_32(&ss);
+  load_seg_reg(&BX_CPU_THIS_PTR sregs[BX_SEG_REG_SS], (Bit16u) ss);
+
+  // POP SS inhibits interrupts, debug exceptions and single-step
+  // trap exceptions until the execution boundary following the
+  // next instruction is reached.
+  // Same code as MOV_SwEw()
+  BX_CPU_THIS_PTR inhibit_mask |=
+    BX_INHIBIT_INTERRUPTS | BX_INHIBIT_DEBUG;
+  BX_CPU_THIS_PTR async_event = 1;
+}
+
+#if BX_CPU_LEVEL >= 2
+void BX_CPU_C::PUSHAD32(bxInstruction_c *i)
+{
+  Bit32u temp_ESP;
+  Bit32u esp;
+
+  if (BX_CPU_THIS_PTR sregs[BX_SEG_REG_SS].cache.u.segment.d_b)
+    temp_ESP = ESP;
+  else
+    temp_ESP = SP;
+
+  if (protected_mode()) {
+    if (! can_push(&BX_CPU_THIS_PTR sregs[BX_SEG_REG_SS].cache, temp_ESP, 32)) {
+        BX_ERROR(("PUSHAD(): stack doesn't have enough room!"));
+        exception(BX_SS_EXCEPTION, 0, 0);
+        return;
+    }
+  }
+  else {
+    if (temp_ESP < 32)
+      BX_PANIC(("pushad: eSP < 32"));
+  }
+
+  esp = ESP;
+
+  /* ??? optimize this by using virtual write, all checks passed */
+  push_32(EAX);
+  push_32(ECX);
+  push_32(EDX);
+  push_32(EBX);
+  push_32(esp);
+  push_32(EBP);
+  push_32(ESI);
+  push_32(EDI);
+}
+
+void BX_CPU_C::POPAD32(bxInstruction_c *i)
+{
+  Bit32u edi, esi, ebp, etmp, ebx, edx, ecx, eax;
+
+  if (protected_mode()) {
+    if ( !can_pop(32) ) {
+      BX_ERROR(("POPAD: not enough bytes on stack"));
+      exception(BX_SS_EXCEPTION, 0, 0);
+      return;
+    }
+  }
+
+  /* ??? optimize this */
+  pop_32(&edi);
+  pop_32(&esi);
+  pop_32(&ebp);
+  pop_32(&etmp); /* value for ESP discarded */
+  pop_32(&ebx);
+  pop_32(&edx);
+  pop_32(&ecx);
+  pop_32(&eax);
+
+  EDI = edi;
+  ESI = esi;
+  EBP = ebp;
+  EBX = ebx;
+  EDX = edx;
+  ECX = ecx;
+  EAX = eax;
+}
+#endif
+
+void BX_CPU_C::PUSH_Id(bxInstruction_c *i)
+{
+  push_32(i->Id());
+}
+
+void BX_CPU_C::PUSH_Ed(bxInstruction_c *i)
+{
+  Bit32u op1_32;
+
+  /* op1_32 is a register or memory reference */
+  if (i->modC0()) {
+    op1_32 = BX_READ_32BIT_REG(i->rm());
+  }
+  else {
+    /* pointer, segment address pair */
+    read_virtual_dword(i->seg(), RMAddr(i), &op1_32);
+  }
+
+  push_32(op1_32);
+}
+
+#if BX_CPU_LEVEL >= 2
+void BX_CPU_C::ENTER_IwIb(bxInstruction_c *i)
+{
+  unsigned ss32 = BX_CPU_THIS_PTR sregs[BX_SEG_REG_SS].cache.u.segment.d_b;
+
+  Bit16u imm16 = i->Iw();
+  Bit8u level = i->Ib2();
+  level &= 0x1F;
+
+  Bit32u ebp; // Use temp copy in case of exception.
+
+  if (i->os32L())
+    push_32(EBP);
+  else
+    push_16(BP);
+
+  Bit32u frame_ptr32 = ESP;
+
+  if (ss32) {
+    ebp = EBP;
+  }
+  else {
+    ebp = BP;
+  }
+
+  if (level > 0) {
+    /* do level-1 times */
+    while (--level) {
+      if (i->os32L()) {
+        Bit32u temp32;
+
+        if (ss32) {
+          ebp -= 4;
+          read_virtual_dword(BX_SEG_REG_SS, ebp, &temp32);
+        }
+        else { /* 16bit stacksize */
+          ebp -= 4; ebp &= 0xffff;
+          read_virtual_dword(BX_SEG_REG_SS, ebp, &temp32);
+        }
+        push_32(temp32);
+      }
+      else { /* 16bit opsize */
+        Bit16u temp16;
+
+        if (ss32) {
+          ebp -= 2;
+          read_virtual_word(BX_SEG_REG_SS, ebp, &temp16);
+        }
+        else { /* 16bit stacksize */
+          ebp -= 2; ebp &= 0xffff;
+          read_virtual_word(BX_SEG_REG_SS, ebp, &temp16);
+        }
+        push_16(temp16);
+      }
+    } /* while (--level) */
+
+    /* push(frame pointer) */
+    if (i->os32L()) {
+      push_32(frame_ptr32);
+    }
+    else { /* 16bit opsize */
+      push_16((Bit16u)frame_ptr32);
+    }
+  } /* if (level > 0) ... */
+
+  if (ss32) {
+    EBP = frame_ptr32;
+    ESP -= imm16;
+  }
+  else {
+    BP = (Bit16u) frame_ptr32;
+    SP -= imm16;
+  }
+}
+
+void BX_CPU_C::LEAVE(bxInstruction_c *i)
+{
+  Bit32u temp_EBP;
+
+#if BX_CPU_LEVEL >= 3
+  if (BX_CPU_THIS_PTR sregs[BX_SEG_REG_SS].cache.u.segment.d_b)
+    temp_EBP = EBP;
+  else
+#endif
+    temp_EBP = BP;
+
+  if (protected_mode()) {
+    if (IS_DATA_SEGMENT_EXPAND_DOWN(BX_CPU_THIS_PTR sregs[BX_SEG_REG_SS].cache.type)) {
+      if (temp_EBP <= BX_CPU_THIS_PTR sregs[BX_SEG_REG_SS].cache.u.segment.limit_scaled) {
+        BX_PANIC(("LEAVE: BP > BX_CPU_THIS_PTR sregs[BX_SEG_REG_SS].limit"));
+        exception(BX_SS_EXCEPTION, 0, 0);
+      }
+    }
+    else { /* normal */
+      if (temp_EBP > BX_CPU_THIS_PTR sregs[BX_SEG_REG_SS].cache.u.segment.limit_scaled) {
+        BX_PANIC(("LEAVE: BP > BX_CPU_THIS_PTR sregs[BX_SEG_REG_SS].limit"));
+        exception(BX_SS_EXCEPTION, 0, 0);
+      }
+    }
+  }
+
+  // delete frame
+#if BX_CPU_LEVEL >= 3
+  if (BX_CPU_THIS_PTR sregs[BX_SEG_REG_SS].cache.u.segment.d_b)
+    ESP = EBP;
+  else
+#endif
+    SP = BP;
+
+  // restore frame pointer
+#if BX_CPU_LEVEL >= 3
+  if (i->os32L()) {
+    Bit32u temp32;
+    pop_32(&temp32);
+    EBP = temp32;
+  }
+  else
+#endif
+  {
+    Bit16u temp16;
+    pop_16(&temp16);
+    BP = temp16;
+  }
+}
+#endif
